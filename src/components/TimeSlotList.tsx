@@ -1,50 +1,50 @@
 import React from 'react';
-import { TouchableOpacity, ViewStyle } from 'react-native';
 import styled from 'styled-components/native';
+import { ViewStyle, TouchableOpacity } from 'react-native';
 import theme from '../styles/theme';
 
 interface TimeSlotListProps {
-    onSelectTime: (time: string) => void;
-    selectedTime?: string;
-    style?: ViewStyle;
+  onSelectTime: (time: string) => void;
+  selectedTime?: string;
+  style?: ViewStyle;
 }
 
 interface StyledProps {
-    isSelected: boolean;
+  isSelected: boolean;
 }
 
 const TimeSlotList: React.FC<TimeSlotListProps> = ({
-    onSelectTime,
-    selectedTime,
-    style,
+  onSelectTime,
+  selectedTime,
+  style,
 }) => {
-    // Gera horários de 30 em 30 minutos das 9h às 18h
-    const generateTimeSlots = () => {
-        const slots: string[] = [];
-        for (let hour = 9; hour < 18; hour++) {
-            slots.push(`${hour.toString().padStart(2, '0')}:00`);
-            slots.push(`${hour.toString().padStart(2, '0')}:30`);
-        }
-        return slots;
-    };
+  // Gera horários de 30 em 30 minutos das 9h às 18h
+  const generateTimeSlots = () => {
+    const slots: string[] = [];
+    for (let hour = 9; hour < 18; hour++) {
+      slots.push(`${hour.toString().padStart(2, '0')}:00`);
+      slots.push(`${hour.toString().padStart(2, '0')}:30`);
+    }
+    return slots;
+  };
 
-    const timeSlots = generateTimeSlots();
+  const timeSlots = generateTimeSlots();
 
-    return (
-        <Container style={style}>
-            <TimeGrid>
-                {timeSlots.map((time) => (
-                    <TimeCard
-                        key={time}
-                        onPress={() => onSelectTime(time)}
-                        isSelected={selectedTime === time}
-                    >
-                        <TimeText isSelected={selectedTime === time}>{time}</TimeText>
-                    </TimeCard>
-                ))}
-            </TimeGrid>
-        </Container>
-    );
+  return (
+    <Container style={style}>
+      <TimeGrid>
+        {timeSlots.map((time) => (
+          <TimeCard
+            key={time}
+            onPress={() => onSelectTime(time)}
+            isSelected={selectedTime === time}
+          >
+            <TimeText isSelected={selectedTime === time}>{time}</TimeText>
+          </TimeCard>
+        ))}
+      </TimeGrid>
+    </Container>
+  );
 };
 
 const Container = styled.View`
@@ -58,7 +58,7 @@ const TimeGrid = styled.View`
   gap: 6px;
 `;
 
-const TimeCard = styled(TouchableOpacity) <StyledProps>`
+const TimeCard = styled(TouchableOpacity)<StyledProps>`
   width: 23%;
   padding: 8px;
   border-radius: 6px;
