@@ -1,31 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components/native';
 import { Button, Input, Text } from 'react-native-elements';
-import { Platform, View, TouchableOpacity } from 'react-native';
+import { Platform, View, TouchableOpacity, Alert } from 'react-native';
 import theme from '../styles/theme';
 import { Doctor } from '../types/doctors';
 import { Appointment } from '../types/appointments';
-
-const doctors: Doctor[] = [
-   {
-      id: '1',
-      name: 'Dr. João Silva',
-      specialty: 'Cardiologista',
-      image: 'https://mighty.tools/mockmind-api/content/human/91.jpg',
-   },
-   {
-      id: '2',
-      name: 'Dra. Maria Santos',
-      specialty: 'Dermatologista',
-      image: 'https://mighty.tools/mockmind-api/content/human/97.jpg',
-   },
-   {
-      id: '3',
-      name: 'Dr. Pedro Oliveira',
-      specialty: 'Oftalmologista',
-      image: 'https://mighty.tools/mockmind-api/content/human/79.jpg',
-   },
-];
+import { authApiService } from '../services/authApi';
+import { specialtiesApiService, Specialty } from '../services/specialtiesApi';
+import { User } from '../types/auth';
 
 type AppointmentFormProps = {
    onSubmit: (appointment: {
@@ -50,7 +32,66 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
    const [dateInput, setDateInput] = useState('');
    const [selectedTime, setSelectedTime] = useState<string>('');
    const [description, setDescription] = useState('');
+   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('');
+   
+   // Estados para dados da API
+   const [doctors, setDoctors] = useState<User[]>([]);
+   const [specialties, setSpecialties] = useState<Specialty[]>([]);
+   const [loading, setLoading] = useState(true);
+   
    const timeSlots = generateTimeSlots();
+
+   // Carrega especialidades e médicos ao montar o componente
+   useEffect(() => {
+      loadInitialData();
+   }, []);
+
+   // Carrega médicos quando uma especialidade é selecionada
+   useEffect(() => {
+      if (selectedSpecialty) {
+         loadDoctorsBySpecialty(selectedSpecialty);
+      } else {
+         loadAllDoctors();
+      }
+   }, [selectedSpecialty]);
+
+   const loadInitialData = async () => {
+      try {
+         setLoading(true);
+         const [specialtiesData, doctorsData] = await Promise.all([
+            specialtiesApiService.getAllSpecialties(),
+            authApiService.getAllDoctors(),
+         ]);
+         
+         setSpecialties(specialtiesData);
+         setDoctors(doctorsData);
+      } catch (error) {
+         console.error('Erro ao carregar dados:', error);
+         Alert.alert('Erro', 'Não foi possível carregar os dados. Tente novamente.');
+      } finally {
+         setLoading(false);
+      }
+   };
+
+   const loadAllDoctors = async () => {
+      try {
+         const doctorsData = await authApiService.getAllDoctors();
+         setDoctors(doctorsData);
+      } catch (error) {
+         console.error('Erro ao carregar médicos:', error);
+      }
+   };
+
+   const loadDoctorsBySpecialty = async (specialty: string) => {
+      try {
+         const doctorsData = await authApiService.getDoctorsBySpecialty(specialty);
+         setDoctors(doctorsData);
+         // Reset da seleção de médico quando muda a especialidade
+         setSelectedDoctor('');
+      } catch (error) {
+         console.error('Erro ao carregar médicos por especialidade:', error);
+      }
+   };
 
    const validateDate = (inputDate: string) => {
       const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
@@ -113,8 +154,39 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
       return true;
    };
 
+   if (loading) {
+      return (
+         <Container>
+            <Text>Carregando...</Text>
+         </Container>
+      );
+   }
+
    return (
       <Container>
+         <Title>Selecione a Especialidade</Title>
+         <SpecialtyContainer>
+            <SpecialtyButton 
+               selected={selectedSpecialty === ''}
+               onPress={() => setSelectedSpecialty('')}
+            >
+               <SpecialtyText selected={selectedSpecialty === ''}>
+                  Todas as Especialidades
+               </SpecialtyText>
+            </SpecialtyButton>
+            {specialties.map((specialty) => (
+               <SpecialtyButton
+                  key={specialty.id}
+                  selected={selectedSpecialty === specialty.name}
+                  onPress={() => setSelectedSpecialty(specialty.name)}
+               >
+                  <SpecialtyText selected={selectedSpecialty === specialty.name}>
+                     {specialty.name}
+                  </SpecialtyText>
+               </SpecialtyButton>
+            ))}
+         </SpecialtyContainer>
+
          <Title>Selecione o Médico</Title>
          <DoctorList>
             {doctors.map((doctor) => (
@@ -126,7 +198,11 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
                   <DoctorImage source={{ uri: doctor.image }} />
                   <DoctorInfo>
                      <DoctorName>{doctor.name}</DoctorName>
-                     <DoctorSpecialty>{doctor.specialty}</DoctorSpecialty>
+                     <DoctorSpecialty>
+                        {doctor.role === 'doctor' && 'specialty' in doctor 
+                           ? doctor.specialty 
+                           : 'Especialidade não informada'}
+                     </DoctorSpecialty>
                   </DoctorInfo>
                </DoctorCard>
             ))}
@@ -295,4 +371,29 @@ const SubmitButton = styled(Button)`
   margin-top: ${theme.spacing.large}px;
 `;
 
-export default AppointmentForm; 
+const SpecialtyContainer = styled.View`
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: ${theme.spacing.small}px;
+  margin-bottom: ${theme.spacing.large}px;
+`;
+
+const SpecialtyButton = styled(TouchableOpacity)<{ selected: boolean }>`
+  background-color: ${(props: { selected: boolean }) => 
+    props.selected ? theme.colors.primary : theme.colors.white};
+  padding: ${theme.spacing.small}px ${theme.spacing.medium}px;
+  border-radius: 20px;
+  border-width: 1px;
+  border-color: ${(props: { selected: boolean }) => 
+    props.selected ? theme.colors.primary : theme.colors.border};
+  margin-bottom: ${theme.spacing.small}px;
+`;
+
+const SpecialtyText = styled(Text)<{ selected: boolean }>`
+  font-size: ${theme.typography.body.fontSize}px;
+  color: ${(props: { selected: boolean }) => 
+    props.selected ? theme.colors.white : theme.colors.text};
+  text-align: center;
+`;
+
+export default AppointmentForm;
