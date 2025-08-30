@@ -88,21 +88,50 @@ public class UsuarioController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciais inválidas");
         }
     }
+
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String authHeader) {
         try {
             // Remove "Bearer " do header
             String token = authHeader.substring(7);
-            
+
             // Extrai o email do token
             String email = jwtTokenProvider.obterEmailDoToken(token);
-            
+
             // Busca o usuário pelo email
             Usuario usuario = usuarioService.buscarPorEmail(email);
-            
+
             return ResponseEntity.ok(usuario);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token inválido");
+        }
+    }
+
+    // ⚠️ ENDPOINT TEMPORÁRIO APENAS PARA TESTES - REMOVER EM PRODUÇÃO
+    @PostMapping("/reset-senhas-teste")
+    public ResponseEntity<?> resetarSenhasParaTeste() {
+        try {
+            String senhasTeste = usuarioService.resetarSenhasParaTeste();
+            return ResponseEntity.ok().body(Map.of("message", senhasTeste));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    // Endpoint para admin alterar senha de qualquer usuário
+    @PutMapping("/{id}/senha")
+    public ResponseEntity<?> alterarSenhaUsuario(@PathVariable Long id, @RequestBody Map<String, String> request) {
+        try {
+            String novaSenha = request.get("novaSenha");
+            if (novaSenha == null || novaSenha.trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Nova senha é obrigatória");
+            }
+
+            Usuario usuario = usuarioService.alterarSenha(id, novaSenha);
+            return ResponseEntity.ok()
+                    .body(Map.of("message", "Senha alterada com sucesso", "usuario", usuario.getNome()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
 }

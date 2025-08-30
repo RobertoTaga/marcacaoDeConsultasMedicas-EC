@@ -5,165 +5,90 @@ import { User, LoginCredentials, RegisterData, AuthResponse } from '../types/aut
 const STORAGE_KEYS = {
   USER: '@MedicalApp:user',
   TOKEN: '@MedicalApp:token',
-  REGISTERED_USERS: '@MedicalApp:registeredUsers',
+  REGISTERED_USERS: '@MedicalApp:registeredUsers', 
 };
 
-// Médicos mockados que podem fazer login
-const mockDoctors = [
-  {
-    id: '1',
-    name: 'Dr. João Silva',
-    email: 'joao@example.com',
-    role: 'doctor' as const,
-    specialty: 'Cardiologia',
-    image: 'https://randomuser.me/api/portraits/men/1.jpg',
-  },
-  {
-    id: '2',
-    name: 'Dra. Maria Santos',
-    email: 'maria@example.com',
-    role: 'doctor' as const,
-    specialty: 'Pediatria',
-    image: 'https://randomuser.me/api/portraits/women/1.jpg',
-  },
-  {
-    id: '3',
-    name: 'Dr. Pedro Oliveira',
-    email: 'pedro@example.com',
-    role: 'doctor' as const,
-    specialty: 'Ortopedia',
-    image: 'https://randomuser.me/api/portraits/men/2.jpg',
-  },
+
+
+// Médicos mockados (DEPRECATED - usar authApiService.getAllDoctors())
+const mockDoctors: User[] = [
+  // Dados removidos - agora vêm da API
 ];
 
-// Admin mockado
-const mockAdmin = {
+// Admin mockado (DEPRECATED - usar authApiService)
+const mockAdmin: User = {
   id: 'admin',
   name: 'Administrador',
   email: 'admin@example.com',
-  role: 'admin' as const,
-  image: 'https://randomuser.me/api/portraits/men/3.jpg',
+  role: 'admin',
+  image: '',
 };
 
-// Lista de usuários cadastrados (pacientes)
-let registeredUsers: (User & { password: string })[] = [];
+
+const API_URL = 'http://localhost:8080/api';
 
 export const authService = {
+  // Login via backend
   async signIn(credentials: LoginCredentials): Promise<AuthResponse> {
-    // Verifica se é o admin
-    if (credentials.email === mockAdmin.email && credentials.password === '123456') {
-      return {
-        user: mockAdmin,
-        token: 'admin-token',
-      };
+    const response = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials),
+    });
+
+    if (!response.ok) {
+      throw new Error('Email ou senha inválidos');
     }
 
-    // Verifica se é um médico
-    const doctor = mockDoctors.find(
-      (d) => d.email === credentials.email && credentials.password === '123456'
-    );
-    if (doctor) {
-      return {
-        user: doctor,
-        token: `doctor-token-${doctor.id}`,
-      };
-    }
+    const data: AuthResponse = await response.json();
 
-    // Verifica se é um paciente registrado
-    const patient = registeredUsers.find(
-      (p) => p.email === credentials.email
-    );
-    if (patient) {
-      // Verifica a senha do paciente
-      if (credentials.password === patient.password) {
-        // Remove a senha do objeto antes de retornar
-        const { password, ...patientWithoutPassword } = patient;
-        return {
-          user: patientWithoutPassword,
-          token: `patient-token-${patient.id}`,
-        };
-      }
-    }
+    await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data.user));
+    await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, data.token);
 
-    throw new Error('Email ou senha inválidos');
+    return data;
   },
 
+  // Registro via backend
   async register(data: RegisterData): Promise<AuthResponse> {
-    // Verifica se o email já está em uso
-    if (
-      mockDoctors.some((d) => d.email === data.email) ||
-      mockAdmin.email === data.email ||
-      registeredUsers.some((u) => u.email === data.email)
-    ) {
-      throw new Error('Email já está em uso');
+    const response = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error('Erro no registro');
     }
 
-    // Cria um novo paciente
-    const newPatient: User & { password: string } = {
-      id: `patient-${registeredUsers.length + 1}`,
-      name: data.name,
-      email: data.email,
-      role: 'patient' as const,
-      image: `https://randomuser.me/api/portraits/${registeredUsers.length % 2 === 0 ? 'men' : 'women'}/${
-        registeredUsers.length + 1
-      }.jpg`,
-      password: data.password,
-    };
-
-    registeredUsers.push(newPatient);
-
-    // Salva a lista atualizada de usuários
-    await AsyncStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(registeredUsers));
-
-    // Remove a senha do objeto antes de retornar
-    const { password, ...patientWithoutPassword } = newPatient;
-    return {
-      user: patientWithoutPassword,
-      token: `patient-token-${newPatient.id}`,
-    };
+    return response.json();
   },
 
+  // Logout
   async signOut(): Promise<void> {
-    // Limpa os dados do usuário do AsyncStorage
     await AsyncStorage.removeItem(STORAGE_KEYS.USER);
     await AsyncStorage.removeItem(STORAGE_KEYS.TOKEN);
   },
 
+  // Recuperar usuário armazenado localmente
   async getStoredUser(): Promise<User | null> {
-    try {
-      const userJson = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-      if (userJson) {
-        return JSON.parse(userJson);
-      }
-      return null;
-    } catch (error) {
-      console.error('Erro ao obter usuário armazenado:', error);
-      return null;
-    }
+    const userJson = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+    return userJson ? JSON.parse(userJson) : null;
   },
 
-  // Funções para o admin
-  async getAllUsers(): Promise<User[]> {
-    return [...mockDoctors, ...registeredUsers];
-  },
-
+  // Buscar médicos (mantido apenas para compatibilidade)
   async getAllDoctors(): Promise<User[]> {
-    return mockDoctors;
+    // DEPRECATED: usar authApiService.getAllDoctors()
+    return [];
   },
 
+  // Buscar pacientes via backend
   async getPatients(): Promise<User[]> {
-    return registeredUsers;
-  },
+    const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+    const response = await fetch(`${API_URL}/usuarios/pacientes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-  // Função para carregar usuários registrados ao iniciar o app
-  async loadRegisteredUsers(): Promise<void> {
-    try {
-      const usersJson = await AsyncStorage.getItem(STORAGE_KEYS.REGISTERED_USERS);
-      if (usersJson) {
-        registeredUsers = JSON.parse(usersJson);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar usuários registrados:', error);
-    }
+    if (!response.ok) throw new Error('Erro ao carregar pacientes');
+    return response.json();
   },
-}; 
+};

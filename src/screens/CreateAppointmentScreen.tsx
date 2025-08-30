@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components/native';
 import { ScrollView, ViewStyle } from 'react-native';
 import { Button, Input } from 'react-native-elements';
@@ -11,6 +11,8 @@ import Header from '../components/Header';
 import DoctorList from '../components/DoctorList';
 import TimeSlotList from '../components/TimeSlotList';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authApiService } from '../services/authApi';
+import { User } from '../types/auth';
 
 type CreateAppointmentScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'CreateAppointment'>;
@@ -35,40 +37,6 @@ interface Doctor {
   image: string;
 }
 
-// Lista de médicos disponíveis
-const availableDoctors: Doctor[] = [
-  {
-    id: '1',
-    name: 'Dr. João Silva',
-    specialty: 'Cardiologia',
-    image: 'https://randomuser.me/api/portraits/men/1.jpg',
-  },
-  {
-    id: '2',
-    name: 'Dra. Maria Santos',
-    specialty: 'Pediatria',
-    image: 'https://randomuser.me/api/portraits/women/1.jpg',
-  },
-  {
-    id: '3',
-    name: 'Dr. Pedro Oliveira',
-    specialty: 'Ortopedia',
-    image: 'https://randomuser.me/api/portraits/men/2.jpg',
-  },
-  {
-    id: '4',
-    name: 'Dra. Ana Costa',
-    specialty: 'Dermatologia',
-    image: 'https://randomuser.me/api/portraits/women/2.jpg',
-  },
-  {
-    id: '5',
-    name: 'Dr. Carlos Mendes',
-    specialty: 'Oftalmologia',
-    image: 'https://randomuser.me/api/portraits/men/3.jpg',
-  },
-];
-
 const CreateAppointmentScreen: React.FC = () => {
   const { user } = useAuth();
   const navigation = useNavigation<CreateAppointmentScreenProps['navigation']>();
@@ -77,6 +45,37 @@ const CreateAppointmentScreen: React.FC = () => {
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [doctors, setDoctors] = useState<User[]>([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
+
+  useEffect(() => {
+    loadDoctors();
+  }, []);
+
+  const loadDoctors = async () => {
+    try {
+      setLoadingDoctors(true);
+      const doctorsData = await authApiService.getAllDoctors();
+      setDoctors(doctorsData);
+    } catch (error) {
+      console.error('Erro ao carregar médicos:', error);
+      setError('Erro ao carregar médicos. Tente novamente.');
+    } finally {
+      setLoadingDoctors(false);
+    }
+  };
+
+  // Converte User[] para Doctor[] para o componente DoctorList
+  const convertUsersToDoctors = (users: User[]): Doctor[] => {
+    return users.map(user => ({
+      id: user.id,
+      name: user.name,
+      specialty: user.role === 'doctor' && 'specialty' in user
+        ? (user as any).specialty
+        : 'Especialidade não informada',
+      image: user.image,
+    }));
+  };
 
   const handleCreateAppointment = async () => {
     try {
@@ -88,11 +87,9 @@ const CreateAppointmentScreen: React.FC = () => {
         return;
       }
 
-      // Recupera consultas existentes
       const storedAppointments = await AsyncStorage.getItem('@MedicalApp:appointments');
       const appointments: Appointment[] = storedAppointments ? JSON.parse(storedAppointments) : [];
 
-      // Cria nova consulta
       const newAppointment: Appointment = {
         id: Date.now().toString(),
         patientId: user?.id || '',
@@ -105,10 +102,8 @@ const CreateAppointmentScreen: React.FC = () => {
         status: 'pending',
       };
 
-      // Adiciona nova consulta à lista
       appointments.push(newAppointment);
 
-      // Salva lista atualizada
       await AsyncStorage.setItem('@MedicalApp:appointments', JSON.stringify(appointments));
 
       alert('Consulta agendada com sucesso!');
@@ -141,11 +136,15 @@ const CreateAppointmentScreen: React.FC = () => {
         />
 
         <SectionTitle>Selecione um Médico</SectionTitle>
-        <DoctorList
-          doctors={availableDoctors}
-          onSelectDoctor={setSelectedDoctor}
-          selectedDoctorId={selectedDoctor?.id}
-        />
+        {loadingDoctors ? (
+          <ErrorText>Carregando médicos...</ErrorText>
+        ) : (
+          <DoctorList
+            doctors={convertUsersToDoctors(doctors)}
+            onSelectDoctor={setSelectedDoctor}
+            selectedDoctorId={selectedDoctor?.id}
+          />
+        )}
 
         {error ? <ErrorText>{error}</ErrorText> : null}
 

@@ -21,6 +21,9 @@ const RegisterScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // NOVO: estado para tipo de usuário
+  const [userType, setUserType] = useState<'PACIENTE' | 'ADMIN'>('PACIENTE');
+
   const handleRegister = async () => {
     try {
       setLoading(true);
@@ -35,9 +38,9 @@ const RegisterScreen: React.FC = () => {
         name,
         email,
         password,
+        userType, // NOVO - envia o tipo de usuário
       });
 
-      // Após o registro bem-sucedido, navega para o login
       navigation.navigate('Login');
     } catch (err) {
       setError('Erro ao criar conta. Tente novamente.');
@@ -48,8 +51,8 @@ const RegisterScreen: React.FC = () => {
 
   return (
     <Container>
-      <Title>Cadastro de Paciente</Title>
-      
+      <Title>Cadastro de Usuário</Title>
+
       <Input
         placeholder="Nome completo"
         value={name}
@@ -75,6 +78,24 @@ const RegisterScreen: React.FC = () => {
         containerStyle={styles.input}
       />
 
+      {/* NOVO: seleção de tipo de usuário */}
+      <SectionTitle>Tipo de Usuário</SectionTitle>
+      <UserTypeContainer>
+        <UserTypeButton
+          selected={userType === 'PACIENTE'}
+          onPress={() => setUserType('PACIENTE')}
+        >
+          <UserTypeText selected={userType === 'PACIENTE'}>Paciente</UserTypeText>
+        </UserTypeButton>
+
+        <UserTypeButton
+          selected={userType === 'ADMIN'}
+          onPress={() => setUserType('ADMIN')}
+        >
+          <UserTypeText selected={userType === 'ADMIN'}>Administrador</UserTypeText>
+        </UserTypeButton>
+      </UserTypeContainer>
+
       {error ? <ErrorText>{error}</ErrorText> : null}
 
       <Button
@@ -96,25 +117,11 @@ const RegisterScreen: React.FC = () => {
 };
 
 const styles = {
-  input: {
-    marginBottom: 15,
-  },
-  button: {
-    marginTop: 10,
-    width: '100%',
-  },
-  buttonStyle: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 12,
-  },
-  backButton: {
-    marginTop: 10,
-    width: '100%',
-  },
-  backButtonStyle: {
-    backgroundColor: theme.colors.secondary,
-    paddingVertical: 12,
-  },
+  input: { marginBottom: 15 },
+  button: { marginTop: 10, width: '100%' },
+  buttonStyle: { backgroundColor: theme.colors.primary, paddingVertical: 12 },
+  backButton: { marginTop: 10, width: '100%' },
+  backButtonStyle: { backgroundColor: theme.colors.secondary, paddingVertical: 12 },
 };
 
 const Container = styled.View`
@@ -138,4 +145,32 @@ const ErrorText = styled.Text`
   margin-bottom: 10px;
 `;
 
-export default RegisterScreen; 
+// NOVO: estilo para seleção de tipo de usuário
+const SectionTitle = styled.Text`
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  color: ${theme.colors.text};
+`;
+
+const UserTypeContainer = styled.View`
+  flex-direction: row;
+  justify-content: space-between;
+  margin-bottom: 20px;
+`;
+
+const UserTypeButton = styled.TouchableOpacity<{ selected: boolean }>`
+  flex: 1;
+  padding: 12px;
+  margin-right: 10px;
+  border-radius: 8px;
+  background-color: ${(props) => (props.selected ? theme.colors.primary : theme.colors.surface)};
+`;
+
+const UserTypeText = styled.Text<{ selected: boolean }>`
+  color: ${(props) => (props.selected ? '#fff' : theme.colors.text)};
+  text-align: center;
+  font-weight: bold;
+`;
+
+export default RegisterScreen;

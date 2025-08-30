@@ -3,11 +3,9 @@ import styled from 'styled-components/native';
 import { Button, Input, Text } from 'react-native-elements';
 import { Platform, View, TouchableOpacity, Alert } from 'react-native';
 import theme from '../styles/theme';
-import { Doctor } from '../types/doctors';
-import { Appointment } from '../types/appointments';
+import { User } from '../types/auth';
 import { authApiService } from '../services/authApi';
 import { specialtiesApiService, Specialty } from '../services/specialtiesApi';
-import { User } from '../types/auth';
 
 type AppointmentFormProps = {
    onSubmit: (appointment: {
@@ -33,20 +31,20 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
    const [selectedTime, setSelectedTime] = useState<string>('');
    const [description, setDescription] = useState('');
    const [selectedSpecialty, setSelectedSpecialty] = useState<string>('');
-   
+
    // Estados para dados da API
    const [doctors, setDoctors] = useState<User[]>([]);
    const [specialties, setSpecialties] = useState<Specialty[]>([]);
    const [loading, setLoading] = useState(true);
-   
+
    const timeSlots = generateTimeSlots();
 
-   // Carrega especialidades e médicos ao montar o componente
+   // --- Carregamento inicial: especialidades e todos os médicos ---
    useEffect(() => {
       loadInitialData();
    }, []);
 
-   // Carrega médicos quando uma especialidade é selecionada
+   // --- Recarrega médicos ao mudar a especialidade ---
    useEffect(() => {
       if (selectedSpecialty) {
          loadDoctorsBySpecialty(selectedSpecialty);
@@ -62,11 +60,10 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
             specialtiesApiService.getAllSpecialties(),
             authApiService.getAllDoctors(),
          ]);
-         
          setSpecialties(specialtiesData);
          setDoctors(doctorsData);
       } catch (error) {
-         console.error('Erro ao carregar dados:', error);
+         console.error('Erro ao carregar dados iniciais:', error);
          Alert.alert('Erro', 'Não foi possível carregar os dados. Tente novamente.');
       } finally {
          setLoading(false);
@@ -77,6 +74,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
       try {
          const doctorsData = await authApiService.getAllDoctors();
          setDoctors(doctorsData);
+         setSelectedDoctor(''); // Reset seleção
       } catch (error) {
          console.error('Erro ao carregar médicos:', error);
       }
@@ -86,8 +84,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
       try {
          const doctorsData = await authApiService.getDoctorsBySpecialty(specialty);
          setDoctors(doctorsData);
-         // Reset da seleção de médico quando muda a especialidade
-         setSelectedDoctor('');
+         setSelectedDoctor(''); // Reset seleção ao trocar especialidade
       } catch (error) {
          console.error('Erro ao carregar médicos por especialidade:', error);
       }
@@ -96,33 +93,23 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
    const validateDate = (inputDate: string) => {
       const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
       const match = inputDate.match(dateRegex);
-
       if (!match) return false;
 
       const [, day, month, year] = match;
       const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
       const today = new Date();
       const maxDate = new Date(new Date().setMonth(new Date().getMonth() + 3));
-
       return date >= today && date <= maxDate;
    };
 
    const handleDateChange = (text: string) => {
-      // Remove todos os caracteres não numéricos
       const numbers = text.replace(/\D/g, '');
-      
-      // Formata a data enquanto digita
       let formattedDate = '';
       if (numbers.length > 0) {
-         if (numbers.length <= 2) {
-            formattedDate = numbers;
-         } else if (numbers.length <= 4) {
-            formattedDate = `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
-         } else {
-            formattedDate = `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
-         }
+         if (numbers.length <= 2) formattedDate = numbers;
+         else if (numbers.length <= 4) formattedDate = `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+         else formattedDate = `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
       }
-
       setDateInput(formattedDate);
    };
 
@@ -131,12 +118,10 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
          alert('Por favor, preencha todos os campos');
          return;
       }
-
       if (!validateDate(dateInput)) {
          alert('Por favor, insira uma data válida (DD/MM/AAAA)');
          return;
       }
-
       const [day, month, year] = dateInput.split('/');
       const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
 
@@ -149,8 +134,6 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
    };
 
    const isTimeSlotAvailable = (time: string) => {
-      // Aqui você pode adicionar lógica para verificar se o horário está disponível
-      // Por exemplo, verificar se já existe uma consulta agendada para este horário
       return true;
    };
 
@@ -164,15 +147,11 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
 
    return (
       <Container>
+         {/* --- Seleção de especialidade --- */}
          <Title>Selecione a Especialidade</Title>
          <SpecialtyContainer>
-            <SpecialtyButton 
-               selected={selectedSpecialty === ''}
-               onPress={() => setSelectedSpecialty('')}
-            >
-               <SpecialtyText selected={selectedSpecialty === ''}>
-                  Todas as Especialidades
-               </SpecialtyText>
+            <SpecialtyButton selected={selectedSpecialty === ''} onPress={() => setSelectedSpecialty('')}>
+               <SpecialtyText selected={selectedSpecialty === ''}>Todas as Especialidades</SpecialtyText>
             </SpecialtyButton>
             {specialties.map((specialty) => (
                <SpecialtyButton
@@ -180,13 +159,12 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
                   selected={selectedSpecialty === specialty.name}
                   onPress={() => setSelectedSpecialty(specialty.name)}
                >
-                  <SpecialtyText selected={selectedSpecialty === specialty.name}>
-                     {specialty.name}
-                  </SpecialtyText>
+                  <SpecialtyText selected={selectedSpecialty === specialty.name}>{specialty.name}</SpecialtyText>
                </SpecialtyButton>
             ))}
          </SpecialtyContainer>
 
+         {/* --- Seleção de médico --- */}
          <Title>Selecione o Médico</Title>
          <DoctorList>
             {doctors.map((doctor) => (
@@ -199,15 +177,14 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
                   <DoctorInfo>
                      <DoctorName>{doctor.name}</DoctorName>
                      <DoctorSpecialty>
-                        {doctor.role === 'doctor' && 'specialty' in doctor 
-                           ? doctor.specialty 
-                           : 'Especialidade não informada'}
+                        {doctor.role === 'doctor' && 'specialty' in doctor ? (doctor as any).specialty : 'Especialidade não informada'}
                      </DoctorSpecialty>
                   </DoctorInfo>
                </DoctorCard>
             ))}
          </DoctorList>
 
+         {/* --- Data e hora --- */}
          <Title>Data e Hora</Title>
          <Input
             placeholder="Data (DD/MM/AAAA)"
@@ -222,24 +199,22 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
          <TimeSlotsContainer>
             <TimeSlotsTitle>Horários Disponíveis:</TimeSlotsTitle>
             <TimeSlotsGrid>
-               {timeSlots.map((time) => {
-                  const isAvailable = isTimeSlotAvailable(time);
-                  return (
-                     <TimeSlotButton
-                        key={time}
-                        selected={selectedTime === time}
-                        disabled={!isAvailable}
-                        onPress={() => isAvailable && setSelectedTime(time)}
-                     >
-                        <TimeSlotText selected={selectedTime === time} disabled={!isAvailable}>
-                           {time}
-                        </TimeSlotText>
-                     </TimeSlotButton>
-                  );
-               })}
+               {timeSlots.map((time) => (
+                  <TimeSlotButton
+                     key={time}
+                     selected={selectedTime === time}
+                     disabled={!isTimeSlotAvailable(time)}
+                     onPress={() => isTimeSlotAvailable(time) && setSelectedTime(time)}
+                  >
+                     <TimeSlotText selected={selectedTime === time} disabled={!isTimeSlotAvailable(time)}>
+                        {time}
+                     </TimeSlotText>
+                  </TimeSlotButton>
+               ))}
             </TimeSlotsGrid>
          </TimeSlotsContainer>
 
+         {/* --- Descrição --- */}
          <Input
             placeholder="Descrição da consulta"
             value={description}
@@ -252,17 +227,13 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ onSubmit }) => {
          <SubmitButton
             title="Agendar Consulta"
             onPress={handleSubmit}
-            buttonStyle={{
-               backgroundColor: theme.colors.primary,
-               borderRadius: 8,
-               padding: 12,
-               marginTop: 20,
-            }}
+            buttonStyle={{ backgroundColor: theme.colors.primary, borderRadius: 8, padding: 12, marginTop: 20 }}
          />
       </Container>
    );
 };
 
+// --- Styled components ---
 const Container = styled.View`
   padding: ${theme.spacing.medium}px;
 `;
@@ -282,7 +253,7 @@ const DoctorCard = styled(TouchableOpacity)<{ selected: boolean }>`
   flex-direction: row;
   align-items: center;
   padding: ${theme.spacing.medium}px;
-  background-color: ${(props: { selected: boolean }) => props.selected ? theme.colors.primary : theme.colors.white};
+  background-color: ${(props) => (props.selected ? theme.colors.primary : theme.colors.white)};
   border-radius: 8px;
   margin-bottom: ${theme.spacing.medium}px;
   elevation: 2;
@@ -332,32 +303,18 @@ const TimeSlotsGrid = styled.View`
 `;
 
 const TimeSlotButton = styled(TouchableOpacity)<{ selected: boolean; disabled: boolean }>`
-  background-color: ${(props: { selected: boolean; disabled: boolean }) => 
-    props.disabled 
-      ? theme.colors.background 
-      : props.selected 
-        ? theme.colors.primary 
-        : theme.colors.white};
+  background-color: ${(props) =>
+    props.disabled ? theme.colors.background : props.selected ? theme.colors.primary : theme.colors.white};
   padding: ${theme.spacing.small}px ${theme.spacing.medium}px;
   border-radius: 8px;
   border-width: 1px;
-  border-color: ${(props: { selected: boolean; disabled: boolean }) => 
-    props.disabled 
-      ? theme.colors.background 
-      : props.selected 
-        ? theme.colors.primary 
-        : theme.colors.text};
-  opacity: ${(props: { disabled: boolean }) => props.disabled ? 0.5 : 1};
+  border-color: ${(props) => (props.disabled ? theme.colors.background : props.selected ? theme.colors.primary : theme.colors.text)};
+  opacity: ${(props) => (props.disabled ? 0.5 : 1)};
 `;
 
 const TimeSlotText = styled(Text)<{ selected: boolean; disabled: boolean }>`
   font-size: ${theme.typography.body.fontSize}px;
-  color: ${(props: { selected: boolean; disabled: boolean }) => 
-    props.disabled 
-      ? theme.colors.text 
-      : props.selected 
-        ? theme.colors.white 
-        : theme.colors.text};
+  color: ${(props) => (props.disabled ? theme.colors.text : props.selected ? theme.colors.white : theme.colors.text)};
 `;
 
 const InputContainer = {
@@ -379,20 +336,17 @@ const SpecialtyContainer = styled.View`
 `;
 
 const SpecialtyButton = styled(TouchableOpacity)<{ selected: boolean }>`
-  background-color: ${(props: { selected: boolean }) => 
-    props.selected ? theme.colors.primary : theme.colors.white};
+  background-color: ${(props) => (props.selected ? theme.colors.primary : theme.colors.white)};
   padding: ${theme.spacing.small}px ${theme.spacing.medium}px;
   border-radius: 20px;
   border-width: 1px;
-  border-color: ${(props: { selected: boolean }) => 
-    props.selected ? theme.colors.primary : theme.colors.border};
+  border-color: ${(props) => (props.selected ? theme.colors.primary : theme.colors.border)};
   margin-bottom: ${theme.spacing.small}px;
 `;
 
 const SpecialtyText = styled(Text)<{ selected: boolean }>`
   font-size: ${theme.typography.body.fontSize}px;
-  color: ${(props: { selected: boolean }) => 
-    props.selected ? theme.colors.white : theme.colors.text};
+  color: ${(props) => (props.selected ? theme.colors.white : theme.colors.text)};
   text-align: center;
 `;
 

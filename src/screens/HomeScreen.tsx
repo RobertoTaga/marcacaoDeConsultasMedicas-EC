@@ -8,39 +8,21 @@ import theme from '../styles/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Appointment } from '../types/appointments';
-import { Doctor } from '../types/doctors';
+import { User } from '../types/auth';
 import { RootStackParamList } from '../types/navigation';
 import { useFocusEffect } from '@react-navigation/native';
+import { authApiService } from '../services/authApi';
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
 };
 
-const doctors: Doctor[] = [
-  {
-    id: '1',
-    name: 'Dr. João Silva',
-    specialty: 'Cardiologista',
-    image: 'https://mighty.tools/mockmind-api/content/human/91.jpg',
-  },
-  {
-    id: '2',
-    name: 'Dra. Maria Santos',
-    specialty: 'Dermatologista',
-    image: 'https://mighty.tools/mockmind-api/content/human/97.jpg',
-  },
-  {
-    id: '3',
-    name: 'Dr. Pedro Oliveira',
-    specialty: 'Oftalmologista',
-    image: 'https://mighty.tools/mockmind-api/content/human/79.jpg',
-  },
-];
-
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [doctors, setDoctors] = useState<User[]>([]);
 
+  // Carrega consultas do AsyncStorage
   const loadAppointments = async () => {
     try {
       const storedAppointments = await AsyncStorage.getItem('appointments');
@@ -52,42 +34,72 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   };
 
+  // Carrega médicos da API
+  const loadDoctors = async () => {
+    try {
+      const doctorsData = await authApiService.getAllDoctors();
+      setDoctors(doctorsData);
+    } catch (error) {
+      console.error('Erro ao carregar médicos:', error);
+    }
+  };
+
   useFocusEffect(
     React.useCallback(() => {
       loadAppointments();
+      loadDoctors();
     }, [])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
     await loadAppointments();
+    await loadDoctors();
     setRefreshing(false);
   };
 
-  const getDoctorInfo = (doctorId: string): Doctor | undefined => {
-    return doctors.find(doctor => doctor.id === doctorId);
-  };
+  // Busca informações do médico pelo id
+  const getDoctorInfo = (doctorId: string): User | undefined =>
+    doctors.find((doctor) => doctor.id === doctorId);
 
   const renderAppointment = ({ item }: { item: Appointment }) => {
     const doctor = getDoctorInfo(item.doctorId);
-    
+
     return (
       <AppointmentCard>
-        <DoctorImage source={{ uri: doctor?.image || 'https://via.placeholder.com/100' }} />
+        <DoctorImage
+          source={{ uri: doctor?.image || 'https://via.placeholder.com/100' }}
+        />
         <InfoContainer>
           <DoctorName>{doctor?.name || 'Médico não encontrado'}</DoctorName>
-          <DoctorSpecialty>{doctor?.specialty || 'Especialidade não encontrada'}</DoctorSpecialty>
-          <DateTime>{new Date(item.date).toLocaleDateString()} - {item.time}</DateTime>
+          <DoctorSpecialty>
+            {doctor?.role === 'doctor' && 'specialty' in doctor
+              ? doctor.specialty
+              : 'Especialidade não encontrada'}
+          </DoctorSpecialty>
+          <DateTime>
+            {new Date(item.date).toLocaleDateString()} - {item.time}
+          </DateTime>
           <Description>{item.description}</Description>
           <Status status={item.status}>
             {item.status === 'pending' ? 'Pendente' : 'Confirmado'}
           </Status>
           <ActionButtons>
             <ActionButton>
-              <Icon name="edit" type="material" size={20} color={theme.colors.primary} />
+              <Icon
+                name="edit"
+                type="material"
+                size={20}
+                color={theme.colors.primary}
+              />
             </ActionButton>
             <ActionButton>
-              <Icon name="delete" type="material" size={20} color={theme.colors.error} />
+              <Icon
+                name="delete"
+                type="material"
+                size={20}
+                color={theme.colors.error}
+              />
             </ActionButton>
           </ActionButtons>
         </InfoContainer>
@@ -116,7 +128,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             backgroundColor: theme.colors.primary,
             borderRadius: 8,
             padding: 12,
-            marginBottom: theme.spacing.medium
+            marginBottom: theme.spacing.medium,
           }}
           onPress={() => navigation.navigate('CreateAppointment')}
         />
@@ -128,9 +140,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
-          ListEmptyComponent={
-            <EmptyText>Nenhuma consulta agendada</EmptyText>
-          }
+          ListEmptyComponent={<EmptyText>Nenhuma consulta agendada</EmptyText>}
         />
       </Content>
     </Container>
@@ -204,7 +214,8 @@ const Description = styled.Text`
 
 const Status = styled.Text<{ status: string }>`
   font-size: ${theme.typography.body.fontSize}px;
-  color: ${(props: { status: string }) => props.status === 'pending' ? theme.colors.error : theme.colors.success};
+  color: ${(props: { status: string }) =>
+    props.status === 'pending' ? theme.colors.error : theme.colors.success};
   margin-top: 4px;
   font-weight: bold;
 `;
