@@ -152,4 +152,7 @@ export const authService = {
       const usersJson = await AsyncStorage.getItem(STORAGE_KEYS.REGISTERED_USERS);
       if (usersJson) registeredUsers = JSON.parse(usersJson);
     } catch (error) {
-      console.error('Erro ao carregar usuários registrados:',
+      console.error('Erro ao carregar usuários registrados:', error);
+    }
+  }
+}
